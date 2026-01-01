@@ -195,22 +195,28 @@ pub fn load_from_markdown<P: AsRef<Path>>(path: P) -> Result<LearningSet> {
         if trimmed.starts_with("# ") {
             name = trimmed[2..].to_string();
         }
-        // Parse front
-        else if trimmed.starts_with("**Front:**") || trimmed.starts_with("Front:") {
+        // Parse front (Question)
+        else if trimmed.starts_with("**Front:**") || trimmed.starts_with("Front:") 
+             || trimmed.starts_with("**Question:**") || trimmed.starts_with("Question:") {
             let front_text = trimmed
                 .trim_start_matches("**Front:**")
                 .trim_start_matches("Front:")
+                .trim_start_matches("**Question:**")
+                .trim_start_matches("Question:")
                 .trim()
                 .to_string();
             current_front = Some(front_text);
         }
-        // Parse back
-        else if (trimmed.starts_with("**Back:**") || trimmed.starts_with("Back:"))
+        // Parse back (Answer)
+        else if (trimmed.starts_with("**Back:**") || trimmed.starts_with("Back:")
+             || trimmed.starts_with("**Answer:**") || trimmed.starts_with("Answer:"))
             && current_front.is_some()
         {
             let back_text = trimmed
                 .trim_start_matches("**Back:**")
                 .trim_start_matches("Back:")
+                .trim_start_matches("**Answer:**")
+                .trim_start_matches("Answer:")
                 .trim()
                 .to_string();
 

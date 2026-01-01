@@ -63,10 +63,11 @@ impl TestResult {
     pub fn calculate(target: &str, typed: &str, duration: Duration, error_count: usize) -> Self {
         let seconds = duration.as_secs_f64();
 
-        // Calculate WPM (assuming average word length of 5 characters)
-        let words = target.split_whitespace().count();
+        // Calculate WPM: (Total Characters / 5) / Minutes
+        // Standard definition of a "word" is 5 characters, including spaces.
         let wpm = if seconds > 0.0 {
-            (words as f64 / seconds) * 60.0
+            let normalized_words = typed.len() as f64 / 5.0;
+            (normalized_words / seconds) * 60.0
         } else {
             0.0
         };
@@ -80,12 +81,18 @@ impl TestResult {
         };
 
         // Calculate accuracy
-        let (correct_chars, total_chars) = Self::calculate_accuracy_metrics(target, typed);
-        let accuracy = if total_chars > 0 {
-            (correct_chars as f64 / total_chars as f64) * 100.0
+        // We use the error_count (which tracks all mistakes, including corrected ones)
+        // relative to the total characters typed.
+        let total_typed_len = typed.len();
+        let accuracy = if total_typed_len > 0 {
+            let net_correct = total_typed_len.saturating_sub(error_count);
+            (net_correct as f64 / total_typed_len as f64) * 100.0
         } else {
             100.0
         };
+
+        // We still calculate correct_chars for other metrics, but accuracy uses the error_count
+        let (correct_chars, total_chars) = Self::calculate_accuracy_metrics(target, typed);
 
         Self {
             wpm,

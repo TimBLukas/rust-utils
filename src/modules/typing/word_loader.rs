@@ -97,8 +97,9 @@ impl WordLoader {
         };
 
         // Filter and select words
-        let filtered = self.filter_words(&all_words, language, difficulty)?;
-        let selected = self.select_random_words(filtered, difficulty.word_count());
+        let mut working_words = all_words;
+        self.filter_words(&mut working_words, language, difficulty)?;
+        let selected = self.select_random_words(working_words, difficulty.word_count());
 
         Ok(selected)
     }
@@ -170,26 +171,22 @@ impl WordLoader {
     /// by length as a proxy.
     fn filter_words(
         &self,
-        words: &[String],
+        words: &mut Vec<String>,
         _language: Language,
         difficulty: Difficulty,
-    ) -> Result<Vec<String>> {
+    ) -> Result<()> {
         let max_length = difficulty.max_word_length();
 
-        let filtered: Vec<String> = words
-            .iter()
-            .filter(|w| w.len() <= max_length && !w.is_empty())
-            .cloned()
-            .collect();
+        words.retain(|w| w.len() <= max_length && !w.is_empty());
 
-        if filtered.is_empty() {
+        if words.is_empty() {
             return Err(UtilError::NoMatchingWords {
                 language: _language.to_string(),
                 difficulty: difficulty.to_string(),
             });
         }
 
-        Ok(filtered)
+        Ok(())
     }
 
     /// Select random words from the filtered list.
@@ -219,19 +216,19 @@ mod tests {
     #[test]
     fn test_filter_by_length() {
         let loader = WordLoader::new("data");
-        let words = vec![
+        let mut words = vec![
             "cat".to_string(),
             "dog".to_string(),
             "elephant".to_string(),
             "a".to_string(),
         ];
 
-        let filtered = loader
-            .filter_words(&words, Language::English, Difficulty::Easy)
+        loader
+            .filter_words(&mut words, Language::English, Difficulty::Easy)
             .unwrap();
 
         // Easy difficulty has max_length of 6
-        assert!(filtered.iter().all(|w| w.len() <= 6));
-        assert!(!filtered.contains(&"elephant".to_string()));
+        assert!(words.iter().all(|w| w.len() <= 6));
+        assert!(!words.contains(&"elephant".to_string()));
     }
 }

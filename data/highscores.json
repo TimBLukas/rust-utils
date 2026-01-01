@@ -1,11 +1,43 @@
 [
   {
+    "name": "Player",
+    "wpm": 2439024.3902439023,
+    "accuracy": 0.0,
+    "language": "en",
+    "difficulty": "Mittel/Medium",
+    "timestamp": "2026-01-01 12:04:06"
+  },
+  {
     "name": "Tim",
     "wpm": 72.38142001196346,
     "accuracy": 100.0,
     "language": "de",
     "difficulty": "Mittel/Medium",
     "timestamp": "2025-12-27 17:26:03"
+  },
+  {
+    "name": "Player",
+    "wpm": 71.50404751841857,
+    "accuracy": 27.73109243697479,
+    "language": "de",
+    "difficulty": "Mittel/Medium",
+    "timestamp": "2026-01-01 12:15:03"
+  },
+  {
+    "name": "Player",
+    "wpm": 64.16730144328623,
+    "accuracy": 48.01762114537445,
+    "language": "en",
+    "difficulty": "Mittel/Medium",
+    "timestamp": "2026-01-01 12:04:55"
+  },
+  {
+    "name": "Player",
+    "wpm": 55.31696410169161,
+    "accuracy": 0.0,
+    "language": "en",
+    "difficulty": "Mittel/Medium",
+    "timestamp": "2026-01-01 12:13:52"
   },
   {
     "name": "Tim",
