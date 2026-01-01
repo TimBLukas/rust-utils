@@ -1,0 +1,60 @@
+{
+  "name": "Biology Basics",
+  "description": "Fundamental biology concepts for learning",
+  "cards": [
+    {
+      "front": "What is photosynthesis?",
+      "back": "The process by which plants convert light energy into chemical energy",
+      "tags": ["biology", "plants", "energy"],
+      "explanation": "Photosynthesis occurs in chloroplasts and produces glucose and oxygen"
+    },
+    {
+      "front": "What is the powerhouse of the cell?",
+      "back": "Mitochondria",
+      "tags": ["biology", "cell"],
+      "explanation": "Mitochondria produce ATP through cellular respiration"
+    },
+    {
+      "front": "What is DNA?",
+      "back": "Deoxyribonucleic acid",
+      "tags": ["biology", "genetics"],
+      "explanation": "DNA carries genetic information in all living organisms"
+    },
+    {
+      "front": "What is the basic unit of life?",
+      "back": "Cell",
+      "tags": ["biology", "cell"],
+      "explanation": "All living organisms are composed of one or more cells"
+    },
+    {
+      "front": "What is osmosis?",
+      "back": "The movement of water across a semipermeable membrane",
+      "tags": ["biology", "cell", "transport"],
+      "explanation": "Water moves from areas of high concentration to low concentration"
+    }
+  ],
+  "questions": [
+    {
+      "question": "Which organelle is responsible for protein synthesis?",
+      "correct_answer": "Ribosome",
+      "alternatives": ["Mitochondria", "Nucleus", "Chloroplast"],
+      "explanation": "Ribosomes translate mRNA into proteins",
+      "tags": ["biology", "cell"]
+    },
+    {
+      "question": "What is the process of cell division called?",
+      "correct_answer": "Mitosis",
+      "alternatives": ["Meiosis", "Photosynthesis", "Respiration"],
+      "explanation": "Mitosis produces two identical daughter cells",
+      "tags": ["biology", "cell", "division"]
+    },
+    {
+      "question": "What gas do plants absorb from the atmosphere?",
+      "correct_answer": "Carbon dioxide",
+      "alternatives": ["Oxygen", "Nitrogen", "Hydrogen"],
+      "explanation": "Plants use CO2 in photosynthesis",
+      "tags": ["biology", "plants"]
+    }
+  ],
+  "tags": ["biology", "science", "education"]
+}

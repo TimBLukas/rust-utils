@@ -1,0 +1,24 @@
+# Rust Util Tools Configuration
+
+[paths]
+data_dir = "data"
+highscore_file = "data/highscores.json"
+learning_sets_dir = "data/learning_sets"
+
+[theme]
+correct_color = "green"
+error_color = "red"
+current_color = "cyan"
+upcoming_color = "white"
+animations = true
+
+[defaults]
+language = "en"
+difficulty = "medium"
+min_accuracy_for_highscore = 80.0
+max_highscores = 50
+
+[learning]
+fuzzy_threshold = 0.85
+spaced_repetition = true
+leitner_boxes = 5

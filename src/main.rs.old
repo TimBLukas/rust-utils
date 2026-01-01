@@ -1,0 +1,676 @@
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+use std::fs::File;
+use std::io::BufReader;
+use std::io::{self, Write};
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
+use termion::event::Key;
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
+use termion::{clear, color, cursor, style};
+
+#[derive(Debug, Deserialize, Clone)]
+struct EnglishWord {
+    word: String,
+    #[serde(default)]
+    useful_for_flashcard: bool,
+    #[serde(default)]
+    cefr_level: String,
+    #[serde(default)]
+    pos: String,
+    #[serde(default)]
+    word_frequency: u32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct GermanWord {
+    word: String,
+    #[serde(default)]
+    useful_for_flashcard: bool,
+    #[serde(default)]
+    cefr_level: String,
+    #[serde(default)]
+    pos: String,
+    #[serde(default)]
+    word_frequency: u32,
+    #[serde(default)]
+    capitalization_sensitive: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct HighScore {
+    name: String,
+    wpm: f64,
+    accuracy: f64,
+    language: String,
+    difficulty: String,
+    timestamp: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Difficulty {
+    Easy,
+    Medium,
+    Hard,
+}
+
+impl Difficulty {
+    fn word_count(&self) -> usize {
+        match self {
+            Difficulty::Easy => 15,
+            Difficulty::Medium => 30,
+            Difficulty::Hard => 50,
+        }
+    }
+
+    fn to_string(&self) -> &str {
+        match self {
+            Difficulty::Easy => "Einfach/Easy",
+            Difficulty::Medium => "Mittel/Medium",
+            Difficulty::Hard => "Schwer/Hard",
+        }
+    }
+
+    fn get_allowed_cefr_levels(&self) -> Vec<&str> {
+        match self {
+            Difficulty::Easy => vec!["A1", "A2"],
+            Difficulty::Medium => vec!["A2", "B1", "B2"],
+            Difficulty::Hard => vec!["B2", "C1", "C2"],
+        }
+    }
+
+    fn get_max_word_length(&self) -> usize {
+        match self {
+            Difficulty::Easy => 6,
+            Difficulty::Medium => 9,
+            Difficulty::Hard => 15,
+        }
+    }
+}
+
+fn main() -> io::Result<()> {
+    loop {
+        print!("{}", clear::All);
+        println!("\n╔════════════════════════════════════════════════╗");
+        println!("║           TYPING SPEED TEST                    ║");
+        println!("╚════════════════════════════════════════════════╝\n");
+
+        println!("1. Neuer Test starten");
+        println!("2. Highscores anzeigen");
+        println!("3. Statistiken");
+        println!("4. Beenden");
+        print!("\nDeine Wahl: ");
+        io::stdout().flush()?;
+
+        let mut choice = String::new();
+        io::stdin().read_line(&mut choice)?;
+
+        match choice.trim() {
+            "1" => start_test()?,
+            "2" => show_highscores()?,
+            "3" => show_statistics()?,
+            "4" => {
+                println!("\nAuf Wiedersehen! / Goodbye!");
+                break;
+            }
+            _ => {
+                println!("\nUngueltige Wahl / Invalid choice");
+                wait_for_enter()?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn start_test() -> io::Result<()> {
+    println!("\n╔════════════════════════════════════════════════╗");
+    println!("║           SPRACHE / LANGUAGE                   ║");
+    println!("╚════════════════════════════════════════════════╝");
+    println!("1. Deutsch");
+    println!("2. English");
+    print!("\nDeine Wahl (1/2): ");
+    io::stdout().flush()?;
+
+    let mut choice = String::new();
+    io::stdin().read_line(&mut choice)?;
+
+    let language = match choice.trim() {
+        "1" => "de",
+        "2" => "en",
+        _ => {
+            println!("\nUngueltige Wahl / Invalid choice");
+            wait_for_enter()?;
+            return Ok(());
+        }
+    };
+
+    println!("\n╔════════════════════════════════════════════════╗");
+    println!("║           SCHWIERIGKEITSGRAD                   ║");
+    println!("╚════════════════════════════════════════════════╝");
+    println!("1. Einfach  - 15 Woerter  (A1-A2 Niveau)");
+    println!("2. Mittel   - 30 Woerter  (A2-B2 Niveau)");
+    println!("3. Schwer   - 50 Woerter  (B2-C2 Niveau)");
+    print!("\nDeine Wahl (1/2/3): ");
+    io::stdout().flush()?;
+
+    let mut diff_choice = String::new();
+    io::stdin().read_line(&mut diff_choice)?;
+
+    let difficulty = match diff_choice.trim() {
+        "1" => Difficulty::Easy,
+        "2" => Difficulty::Medium,
+        "3" => Difficulty::Hard,
+        _ => {
+            println!("\nUngueltige Wahl, verwende Mittel / Invalid choice, using Medium");
+            Difficulty::Medium
+        }
+    };
+
+    println!("\nLade Woerter aus Datei...");
+    let text = match generate_random_text(language, difficulty) {
+        Ok(text) => text,
+        Err(e) => {
+            eprintln!("Fehler beim Laden der Woerter: {}", e);
+            eprintln!("Stelle sicher, dass die Dateien 'english_words.json' und");
+            eprintln!("'german_words.json' im selben Verzeichnis wie 'src' liegen.");
+            wait_for_enter()?;
+            return Ok(());
+        }
+    };
+
+    println!("\n╔════════════════════════════════════════════════╗");
+    println!("║           BEREIT ZUM TIPPEN?                   ║");
+    println!("╚════════════════════════════════════════════════╝");
+    println!("\nTippe den folgenden Text so schnell und genau wie moeglich:");
+    println!("\n{}\n", text);
+    println!("Tipps:");
+    println!("   - Druecke Enter um zu starten");
+    println!("   - ESC oder Ctrl+C zum Abbrechen");
+    println!("   - Backspace zum Korrigieren");
+    print!("\nDruecke Enter um zu starten...");
+    io::stdout().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+
+    run_typing_test(&text, language, difficulty)?;
+
+    Ok(())
+}
+
+fn load_english_words() -> Result<Vec<EnglishWord>, Box<dyn std::error::Error>> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("english_words.json");
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let words: Vec<EnglishWord> = serde_json::from_reader(reader)?;
+    Ok(words)
+}
+
+fn load_german_words() -> Result<Vec<GermanWord>, Box<dyn std::error::Error>> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("german_words.json");
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let words: Vec<GermanWord> = serde_json::from_reader(reader)?;
+    Ok(words)
+}
+
+fn generate_random_text(
+    language: &str,
+    difficulty: Difficulty,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let word_count = difficulty.word_count();
+    let mut rng = rand::rng();
+
+    let allowed_cefr = difficulty.get_allowed_cefr_levels();
+    let max_length = difficulty.get_max_word_length();
+
+    let mut filtered_words: Vec<String> = if language == "de" {
+        let words = load_german_words()?;
+        words
+            .into_iter()
+            .filter(|w| {
+                // Filtere nach CEFR-Level
+                let cefr_match = allowed_cefr.iter().any(|c| c == &w.cefr_level);
+
+                // Filtere nach Wortlänge
+                let length_ok = w.word.len() <= max_length;
+
+                cefr_match && length_ok && w.useful_for_flashcard
+            })
+            .map(|w| {
+                // Für deutsche Wörter: klein schreiben außer wenn capitalization_sensitive
+                if w.capitalization_sensitive {
+                    w.word
+                } else {
+                    w.word.to_lowercase()
+                }
+            })
+            .collect()
+    } else {
+        let words = load_english_words()?;
+        words
+            .into_iter()
+            .filter(|w| {
+                let cefr_match = allowed_cefr.contains(&w.cefr_level.as_str());
+                let length_ok = w.word.len() <= max_length;
+
+                cefr_match && length_ok && w.useful_for_flashcard
+            })
+            .map(|w| w.word)
+            .collect()
+    };
+
+    if filtered_words.is_empty() {
+        return Err("Keine passenden Woerter in der Datei gefunden".into());
+    }
+
+    // Mische die Wörter
+    for i in (1..filtered_words.len()).rev() {
+        let j = rng.gen_range(0..=i);
+        filtered_words.swap(i, j);
+    }
+
+    // Nimm die gewünschte Anzahl oder alle verfügbaren
+    let selected_count = word_count.min(filtered_words.len());
+    let selected_words: Vec<String> = filtered_words.into_iter().take(selected_count).collect();
+
+    Ok(selected_words.join(" "))
+}
+
+fn run_typing_test(target_text: &str, language: &str, difficulty: Difficulty) -> io::Result<()> {
+    let stdin = io::stdin();
+    let mut stdout = io::stdout().into_raw_mode()?;
+
+    write!(
+        stdout,
+        "{}{}{}",
+        clear::All,
+        cursor::Goto(1, 1),
+        cursor::Hide
+    )?;
+
+    let mut typed = String::new();
+    let start_time = Instant::now();
+    let mut finished = false;
+    let mut error_count = 0;
+
+    render_text(&mut stdout, target_text, &typed)?;
+
+    for key in stdin.keys() {
+        match key? {
+            Key::Char('\n') => {
+                if typed == target_text {
+                    finished = true;
+                    break;
+                }
+            }
+            Key::Char(c) => {
+                if typed.len() < target_text.len() {
+                    let target_chars: Vec<char> = target_text.chars().collect();
+                    if typed.len() < target_chars.len() && c != target_chars[typed.len()] {
+                        error_count += 1;
+                    }
+                    typed.push(c);
+                }
+            }
+            Key::Backspace => {
+                typed.pop();
+            }
+            Key::Ctrl('c') | Key::Esc => {
+                break;
+            }
+            _ => {}
+        }
+
+        render_text(&mut stdout, target_text, &typed)?;
+
+        if typed == target_text {
+            finished = true;
+            break;
+        }
+    }
+
+    let elapsed = start_time.elapsed();
+
+    write!(stdout, "{}", cursor::Show)?;
+    stdout.flush()?;
+    drop(stdout);
+
+    println!("\n\n");
+    if finished {
+        show_results(
+            target_text,
+            &typed,
+            elapsed,
+            error_count,
+            language,
+            difficulty,
+        )?;
+    } else {
+        println!("Test abgebrochen / Test cancelled");
+        wait_for_enter()?;
+    }
+
+    Ok(())
+}
+
+fn render_text(stdout: &mut impl Write, target: &str, typed: &str) -> io::Result<()> {
+    write!(stdout, "{}{}", clear::All, cursor::Goto(1, 1))?;
+
+    writeln!(
+        stdout,
+        "╔════════════════════════════════════════════════════════════════════════════╗\r"
+    )?;
+    writeln!(
+        stdout,
+        "║  TYPING SPEED TEST  -  ESC zum Beenden  -  Backspace zum Korrigieren      ║\r"
+    )?;
+    writeln!(
+        stdout,
+        "╚════════════════════════════════════════════════════════════════════════════╝\r"
+    )?;
+    writeln!(stdout, "\r")?;
+
+    let target_chars: Vec<char> = target.chars().collect();
+    let typed_chars: Vec<char> = typed.chars().collect();
+
+    for (i, &target_char) in target_chars.iter().enumerate() {
+        if i < typed_chars.len() {
+            if typed_chars[i] == target_char {
+                write!(
+                    stdout,
+                    "{}{}{}",
+                    color::Fg(color::Green),
+                    style::Bold,
+                    target_char
+                )?;
+            } else {
+                write!(
+                    stdout,
+                    "{}{}{}{}",
+                    color::Bg(color::Red),
+                    color::Fg(color::White),
+                    style::Bold,
+                    typed_chars[i]
+                )?;
+                write!(stdout, "{}", color::Bg(color::Reset))?;
+            }
+        } else if i == typed_chars.len() {
+            write!(
+                stdout,
+                "{}{}{}{}",
+                color::Fg(color::Cyan),
+                style::Bold,
+                style::Underline,
+                target_char
+            )?;
+        } else {
+            write!(stdout, "{}{}", color::Fg(color::White), target_char)?;
+        }
+    }
+
+    write!(
+        stdout,
+        "{}{}{}",
+        style::Reset,
+        color::Fg(color::Reset),
+        color::Bg(color::Reset)
+    )?;
+
+    writeln!(stdout, "\r")?;
+    writeln!(stdout, "\r")?;
+    writeln!(
+        stdout,
+        "────────────────────────────────────────────────────────────────────────────\r"
+    )?;
+
+    let correct_chars = typed_chars
+        .iter()
+        .zip(target_chars.iter())
+        .filter(|(t, s)| t == s)
+        .count();
+    let accuracy = if !typed.is_empty() {
+        (correct_chars as f64 / typed.len() as f64) * 100.0
+    } else {
+        100.0
+    };
+
+    let progress_percentage = (typed.len() as f64 / target.len() as f64) * 100.0;
+    let progress_bar_width = 50;
+    let filled = ((progress_percentage / 100.0) * progress_bar_width as f64) as usize;
+    let empty = progress_bar_width - filled;
+
+    write!(stdout, "Fortschritt: [")?;
+    write!(stdout, "{}", color::Fg(color::Green))?;
+    for _ in 0..filled {
+        write!(stdout, "=")?;
+    }
+    write!(stdout, "{}", color::Fg(color::LightBlack))?;
+    for _ in 0..empty {
+        write!(stdout, "-")?;
+    }
+    write!(
+        stdout,
+        "{}] {:.1}%\r",
+        color::Fg(color::Reset),
+        progress_percentage
+    )?;
+
+    writeln!(stdout, "\r")?;
+    writeln!(
+        stdout,
+        "Zeichen: {}/{} | Genauigkeit: {}{:.1}%{}\r",
+        typed.len(),
+        target.len(),
+        if accuracy >= 95.0 {
+            color::Fg(color::Green).to_string()
+        } else if accuracy >= 85.0 {
+            color::Fg(color::Yellow).to_string()
+        } else {
+            color::Fg(color::Red).to_string()
+        },
+        accuracy,
+        color::Fg(color::Reset)
+    )?;
+
+    stdout.flush()?;
+    Ok(())
+}
+
+fn show_results(
+    text: &str,
+    typed: &str,
+    elapsed: Duration,
+    error_count: usize,
+    language: &str,
+    difficulty: Difficulty,
+) -> io::Result<()> {
+    let seconds = elapsed.as_secs_f64();
+    let words = text.split_whitespace().count();
+    let wpm = (words as f64 / seconds) * 60.0;
+    let chars = text.chars().count();
+    let cpm = (chars as f64 / seconds) * 60.0;
+
+    let target_chars: Vec<char> = text.chars().collect();
+    let typed_chars: Vec<char> = typed.chars().collect();
+
+    let correct_chars = typed_chars
+        .iter()
+        .zip(target_chars.iter())
+        .filter(|(t, s)| t == s)
+        .count();
+    let accuracy = (correct_chars as f64 / typed_chars.len() as f64) * 100.0;
+
+    println!("╔════════════════════════════════════════════════╗");
+    println!("║           ERGEBNISSE / RESULTS                 ║");
+    println!("╚════════════════════════════════════════════════╝");
+    println!();
+    println!("Zeit: {:.2} Sekunden", seconds);
+    println!("Woerter pro Minute (WPM): {:.1}", wpm);
+    println!("Zeichen pro Minute (CPM): {:.0}", cpm);
+    println!("Genauigkeit: {:.1}%", accuracy);
+    println!("Fehler beim ersten Versuch: {}", error_count);
+    println!("Schwierigkeit: {}", difficulty.to_string());
+    println!();
+
+    let rating = if accuracy >= 98.0 && wpm >= 60.0 {
+        "PERFEKT! Ausgezeichnete Leistung!"
+    } else if accuracy >= 95.0 && wpm >= 45.0 {
+        "SEHR GUT! Starke Performance!"
+    } else if accuracy >= 90.0 && wpm >= 30.0 {
+        "GUT! Weiter so!"
+    } else {
+        "Uebung macht den Meister!"
+    };
+
+    println!("Bewertung: {}", rating);
+    println!("{}", "═".repeat(50));
+
+    if accuracy >= 80.0 {
+        println!("\nMoechtest du dieses Ergebnis speichern? (j/n): ");
+        io::stdout().flush()?;
+
+        let mut save_choice = String::new();
+        io::stdin().read_line(&mut save_choice)?;
+
+        if save_choice.trim().to_lowercase() == "j" || save_choice.trim().to_lowercase() == "y" {
+            print!("Dein Name: ");
+            io::stdout().flush()?;
+
+            let mut name = String::new();
+            io::stdin().read_line(&mut name)?;
+
+            save_highscore(name.trim(), wpm, accuracy, language, difficulty)?;
+            println!("Highscore gespeichert!");
+        }
+    }
+
+    wait_for_enter()?;
+    Ok(())
+}
+
+fn save_highscore(
+    name: &str,
+    wpm: f64,
+    accuracy: f64,
+    language: &str,
+    difficulty: Difficulty,
+) -> io::Result<()> {
+    let score = HighScore {
+        name: name.to_string(),
+        wpm,
+        accuracy,
+        language: language.to_string(),
+        difficulty: difficulty.to_string().to_string(),
+        timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+    };
+
+    let mut scores = load_highscores().unwrap_or_default();
+    scores.push(score);
+
+    scores.sort_by(|a, b| b.wpm.partial_cmp(&a.wpm).unwrap());
+    scores.truncate(50);
+
+    let file = File::create("highscores.json")?;
+    serde_json::to_writer_pretty(file, &scores)?;
+
+    Ok(())
+}
+
+fn load_highscores() -> Result<Vec<HighScore>, Box<dyn std::error::Error>> {
+    let file = File::open("highscores.json")?;
+    let reader = BufReader::new(file);
+    let scores = serde_json::from_reader(reader)?;
+    Ok(scores)
+}
+
+fn show_highscores() -> io::Result<()> {
+    println!("\n╔════════════════════════════════════════════════╗");
+    println!("║           TOP HIGHSCORES                       ║");
+    println!("╚════════════════════════════════════════════════╝\n");
+
+    match load_highscores() {
+        Ok(scores) => {
+            if scores.is_empty() {
+                println!("Noch keine Highscores vorhanden.");
+            } else {
+                for (i, score) in scores.iter().take(10).enumerate() {
+                    println!(
+                        "{}. {} - {:.1} WPM ({:.1}%) [{}] [{}]",
+                        i + 1,
+                        score.name,
+                        score.wpm,
+                        score.accuracy,
+                        score.difficulty,
+                        score.language.to_uppercase()
+                    );
+                }
+            }
+        }
+        Err(_) => {
+            println!("Noch keine Highscores vorhanden.");
+        }
+    }
+
+    wait_for_enter()?;
+    Ok(())
+}
+
+fn show_statistics() -> io::Result<()> {
+    println!("\n╔════════════════════════════════════════════════╗");
+    println!("║           STATISTIKEN                          ║");
+    println!("╚════════════════════════════════════════════════╝\n");
+
+    match load_highscores() {
+        Ok(scores) => {
+            if scores.is_empty() {
+                println!("Noch keine Daten vorhanden.");
+            } else {
+                let total_tests = scores.len();
+                let avg_wpm: f64 = scores.iter().map(|s| s.wpm).sum::<f64>() / total_tests as f64;
+                let avg_accuracy: f64 =
+                    scores.iter().map(|s| s.accuracy).sum::<f64>() / total_tests as f64;
+                let best_wpm = scores.iter().map(|s| s.wpm).fold(0.0f64, f64::max);
+
+                println!("Gesamt Tests: {}", total_tests);
+                println!("Durchschnittliche WPM: {:.1}", avg_wpm);
+                println!("Durchschnittliche Genauigkeit: {:.1}%", avg_accuracy);
+                println!("Beste WPM: {:.1}", best_wpm);
+
+                println!("\nTests pro Schwierigkeit:");
+                let easy_count = scores
+                    .iter()
+                    .filter(|s| s.difficulty.contains("Easy"))
+                    .count();
+                let medium_count = scores
+                    .iter()
+                    .filter(|s| s.difficulty.contains("Medium"))
+                    .count();
+                let hard_count = scores
+                    .iter()
+                    .filter(|s| s.difficulty.contains("Hard"))
+                    .count();
+
+                println!("   Einfach:  {}", easy_count);
+                println!("   Mittel:   {}", medium_count);
+                println!("   Schwer:   {}", hard_count);
+            }
+        }
+        Err(_) => {
+            println!("Noch keine Daten vorhanden.");
+        }
+    }
+
+    wait_for_enter()?;
+    Ok(())
+}
+
+fn wait_for_enter() -> io::Result<()> {
+    println!("\nDruecke Enter um fortzufahren...");
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    Ok(())
+}
