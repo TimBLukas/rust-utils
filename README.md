@@ -6,21 +6,21 @@ A modern, modular Rust application combining typing speed tests, intelligent lea
 
 ## Features
 
-### 🎯 Typing Speed Test
+### Typing Speed Test
 - Multi-language support (German, English)
 - Multiple difficulty levels with CEFR-based word filtering
 - Real-time WPM and accuracy calculation
 - Persistent highscore tracking
 - Different test modes (time-based, word-count, code snippets)
 
-### 🧠 Learning System
+### Learning System
 - Flashcard and quiz support
 - **Fuzzy matching** for answer validation with user override
 - **Spaced repetition** using the Leitner box algorithm
 - Multiple format support (JSON, CSV, Markdown)
 - Session management and progress tracking
 
-### 📊 Statistics & Analytics
+### Statistics & Analytics
 - Comprehensive highscore management
 - Performance tracking over time
 - Filterable statistics by language and difficulty
